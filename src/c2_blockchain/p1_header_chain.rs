@@ -25,12 +25,24 @@ pub struct Header {
 impl Header {
     /// Returns a new valid genesis header.
     fn genesis() -> Self {
-        todo!("Exercise 1")
+        Self {
+            parent: 0,
+            height: 0,
+            extrinsics_root: (),
+            state_root: (),
+            consensus_digest: (),
+        }
     }
 
     /// Create and return a valid child header.
     fn child(&self) -> Self {
-        todo!("Exercise 2")
+        Self {
+            parent: hash(self),
+            height: self.height + 1,
+            extrinsics_root: (),
+            state_root: (),
+            consensus_digest: (),
+        }
     }
 
     /// Verify that all the given headers form a valid chain from this header to the tip.
@@ -38,7 +50,24 @@ impl Header {
     /// This method may assume that the block on which it is called is valid, but it
     /// must verify all of the blocks in the slice;
     fn verify_sub_chain(&self, chain: &[Header]) -> bool {
-        todo!("Exercise 3")
+        if chain.is_empty() {
+            return true;
+        }
+
+        let mut current_header = self.clone();
+        for header in chain {
+            if header.parent != hash(&current_header) {
+                return false;
+            }
+
+            if header.height != current_header.height + 1 {
+                return false;
+            }
+
+            current_header = header.clone();
+        }
+
+        true
     }
 }
 
@@ -46,14 +75,32 @@ impl Header {
 
 /// Build and return a valid chain with exactly five blocks including the genesis block.
 fn build_valid_chain_length_5() -> Vec<Header> {
-    todo!("Exercise 4")
+    let mut ret_chain: Vec<Header> = Vec::new();
+    ret_chain.push(Header::genesis());
+
+    for _ in 0..4 {
+        ret_chain.push(ret_chain.last().unwrap().child());
+    }
+
+    ret_chain
 }
 
 /// Build and return a chain with at least three headers.
 /// The chain should start with a proper genesis header,
 /// but the entire chain should NOT be valid.
 fn build_an_invalid_chain() -> Vec<Header> {
-    todo!("Exercise 5")
+    let mut ret_chain: Vec<Header> = Vec::new();
+    ret_chain.push(Header::genesis());
+
+    for _ in 0..4 {
+        ret_chain.push(ret_chain.last().unwrap().child());
+    }
+
+    let mut invalid_last_block = ret_chain.last().unwrap().child();
+    invalid_last_block.height = 10;
+    ret_chain.push(invalid_last_block);
+
+    ret_chain
 }
 
 // To run these tests: `cargo test bc_1
