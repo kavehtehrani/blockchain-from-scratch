@@ -3,6 +3,7 @@
 //! entered the wrong pin.
 
 use super::StateMachine;
+use crate::hash;
 
 /// The keys on the ATM keypad
 #[derive(Hash, Debug, PartialEq, Eq, Clone)]
@@ -58,7 +59,87 @@ impl StateMachine for Atm {
     type Transition = Action;
 
     fn next_state(starting_state: &Self::State, t: &Self::Transition) -> Self::State {
-        todo!("Exercise 4")
+        fn keys_to_amount(keys: &Vec<Key>) -> u64 {
+            let mut pin = 0;
+            for key in keys {
+                match key {
+                    Key::One => pin = pin * 10 + 1,
+                    Key::Two => pin = pin * 10 + 2,
+                    Key::Three => pin = pin * 10 + 3,
+                    Key::Four => pin = pin * 10 + 4,
+                    Key::Enter => {}
+                };
+            }
+            pin
+        }
+        match t {
+            Action::SwipeCard(pin_hash) => {
+                Atm {
+                    cash_inside: starting_state.cash_inside,
+                    expected_pin_hash: Auth::Authenticating(*pin_hash),
+                    keystroke_register: starting_state.keystroke_register.clone(),
+                }
+            }
+            Action::PressKey(key) => {
+                match starting_state.expected_pin_hash {
+                    Auth::Waiting => { starting_state.clone() }
+                    Auth::Authenticating(expected_pin_hash) => {
+                        let mut new_keystroke_register = starting_state.keystroke_register.clone();
+                        if key == &Key::Enter {
+                            let pin = crate::hash(&new_keystroke_register);
+                            if expected_pin_hash == hash(&new_keystroke_register) {
+                                Self::State {
+                                    cash_inside: starting_state.cash_inside,
+                                    expected_pin_hash: Auth::Authenticated,
+                                    keystroke_register: Vec::new(),
+                                }
+                            } else {
+                                Self::State {
+                                    cash_inside: starting_state.cash_inside,
+                                    expected_pin_hash: Auth::Waiting,
+                                    keystroke_register: Vec::new(),
+                                }
+                            }
+                        } else {
+                            let mut new_keystroke_register = starting_state.keystroke_register.clone();
+                            new_keystroke_register.push(key.clone());
+                            Self::State {
+                                cash_inside: starting_state.cash_inside,
+                                expected_pin_hash: Auth::Authenticating(expected_pin_hash),
+                                keystroke_register: new_keystroke_register,
+                            }
+                        }
+                    }
+                    Auth::Authenticated => {
+                        let mut new_keystroke_register = starting_state.keystroke_register.clone();
+                        new_keystroke_register.push(key.clone());
+
+                        if key == &Key::Enter {
+                            let amount = keys_to_amount(&new_keystroke_register);
+                            if starting_state.cash_inside >= amount {
+                                Self::State {
+                                    cash_inside: starting_state.cash_inside - amount,
+                                    expected_pin_hash: Auth::Waiting,
+                                    keystroke_register: Vec::new(),
+                                }
+                            } else {
+                                Self::State {
+                                    cash_inside: starting_state.cash_inside,
+                                    expected_pin_hash: Auth::Waiting,
+                                    keystroke_register: Vec::new(),
+                                }
+                            }
+                        } else {
+                            Self::State {
+                                cash_inside: starting_state.cash_inside,
+                                expected_pin_hash: Auth::Authenticated,
+                                keystroke_register: new_keystroke_register,
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -94,7 +94,68 @@ impl StateMachine for DigitalCashSystem {
     type Transition = CashTransaction;
 
     fn next_state(starting_state: &Self::State, t: &Self::Transition) -> Self::State {
-        todo!("Exercise 1")
+        let mut state = starting_state.clone();
+
+        match t {
+            CashTransaction::Mint { minter, amount } => {
+                state.add_bill(Bill { owner: *minter, amount: *amount, serial: state.next_serial() })
+            }
+            CashTransaction::Transfer { spends, receives } => {
+                let mut new_bills = HashSet::<Bill>::new();
+                let mut total_spent = 0u64;
+                let mut total_received = 0u64;
+
+                let spend_serials: HashSet<u64> = spends.iter().map(|bill| bill.serial).collect();
+                let receive_serials: HashSet<u64> = receives.iter().map(|bill| bill.serial).collect();
+
+                if spend_serials.len() < spends.len() || receive_serials.len() < receives.len() {
+                    return state
+                }
+
+                if !spend_serials.is_disjoint(&receive_serials) {
+                    return state;
+                }
+
+                for bill in spends {
+                    if !state.bills.contains(bill) || bill.serial >= u64::MAX {
+                        return state;
+                    }
+
+                    total_spent = match total_spent.checked_add(bill.amount) {
+                        Some(value) => value,
+                        None => return state, // Overflow occurred, return the current state
+                    };
+                }
+
+                for bill in receives {
+                    if bill.amount == 0  || bill.serial >= u64::MAX {
+                        return state;
+                    }
+
+                    total_received = match total_received.checked_add(bill.amount) {
+                        Some(value) => value,
+                        None => return state, // Overflow occurred, return the current state
+                    };
+                }
+
+                if total_spent < total_received {
+                    return state;
+                }
+
+                for bill in receives {
+                    new_bills.insert(Bill { owner: bill.owner, amount: bill.amount, serial: state.next_serial() });
+                    state.increment_serial();
+                }
+
+                for bill in spends {
+                    state.bills.remove(bill);
+                }
+
+                state.bills.extend(new_bills);
+            }
+        }
+
+        state
     }
 }
 
