@@ -37,12 +37,35 @@ pub struct Header {
 impl Header {
     /// Returns a new valid genesis header.
     fn genesis() -> Self {
-        todo!("Exercise 1")
+        Self {
+            parent: 0,
+            height: 0,
+            extrinsic: 0,
+            state: 0,
+            consensus_digest: 0,
+        }
     }
 
     /// Create and return a valid child header.
     fn child(&self, extrinsic: u64) -> Self {
-        todo!("Exercise 2")
+        let mut consensus_digest = 0;
+        let mut trial = Header {
+            parent: hash(&self),
+            height: self.height + 1,
+            extrinsic,
+            state: self.state + extrinsic,
+            consensus_digest,
+        };
+
+        consensus_digest = loop {
+            if hash(&trial) < THRESHOLD {
+                break consensus_digest;
+            } else {
+                trial.consensus_digest += 1;
+            }
+        };
+
+        trial
     }
 
     /// Verify that all the given headers form a valid chain from this header to the tip.
@@ -50,7 +73,28 @@ impl Header {
     /// In addition to all the rules we had before, we now need to check that the block hash
     /// is below a specific threshold.
     fn verify_sub_chain(&self, chain: &[Header]) -> bool {
-        todo!("Exercise 3")
+        if chain.is_empty() {
+            return true;
+        }
+
+        let mut current_header = self.clone();
+        for header in chain {
+            if header.parent != hash(&current_header) {
+                return false;
+            }
+            if header.height != current_header.height + 1 {
+                return false;
+            }
+            if header.state != current_header.state + header.extrinsic {
+                return false;
+            }
+            if hash(&header) >= THRESHOLD {
+                return false;
+            }
+            current_header = header.clone();
+        }
+
+        true
     }
 
     // After the blockchain ran for a while, a political rift formed in the community.
@@ -62,13 +106,35 @@ impl Header {
     /// verify that the given headers form a valid chain.
     /// In this case "valid" means that the STATE MUST BE EVEN.
     fn verify_sub_chain_even(&self, chain: &[Header]) -> bool {
-        todo!("Exercise 4")
+        if !self.verify_sub_chain(&chain) {
+            return false;
+        }
+
+        // now check from the fork to make sure state is even
+        for header in &chain[((chain.len() - FORK_HEIGHT as usize)..)] {
+            if header.state % 2 != 0 {
+                return false;
+            }
+        }
+
+        true
     }
 
     /// verify that the given headers form a valid chain.
     /// In this case "valid" means that the STATE MUST BE ODD.
     fn verify_sub_chain_odd(&self, chain: &[Header]) -> bool {
-        todo!("Exercise 5")
+        if !self.verify_sub_chain(&chain) {
+            return false;
+        }
+
+        // now check from the fork to make sure state is odd
+        for header in &chain[((chain.len() - FORK_HEIGHT as usize)..)] {
+            if header.state % 2 != 1 {
+                return false;
+            }
+        }
+
+        true
     }
 }
 
@@ -89,8 +155,24 @@ impl Header {
 /// G -- 1 -- 2
 ///            \-- 3'-- 4'
 fn build_contentious_forked_chain() -> (Vec<Header>, Vec<Header>, Vec<Header>) {
-    todo!("Exercise 6")
+    let mut common_prefix: Vec<Header> = Vec::new();
+    let mut even_suffix: Vec<Header> = Vec::new();
+    let mut odd_suffix: Vec<Header> = Vec::new();
+
+    let genesis = Header::genesis();
+    common_prefix.push(genesis.clone());
+    common_prefix.push(common_prefix.last().unwrap().child(1));
+    common_prefix.push(common_prefix.last().unwrap().child(2));
+
+    even_suffix.push(common_prefix.last().unwrap().child(3));
+    even_suffix.push(even_suffix.last().unwrap().child(2));
+
+    odd_suffix.push(common_prefix.last().unwrap().child(4));
+    odd_suffix.push(odd_suffix.last().unwrap().child(2));
+
+    (common_prefix, even_suffix, odd_suffix)
 }
+
 
 // To run these tests: `cargo test bc_3`
 #[test]
@@ -222,8 +304,8 @@ fn bc_3_even_chain_valid() {
     let g = Header::genesis(); // 0
     let b1 = g.child(2); // 2
     let b2 = b1.child(1); // 3
-                          // It' all about the states, not the extrinsics. So once the state is even
-                          // we need to keep it that way. So add evens
+    // It' all about the states, not the extrinsics. So once the state is even
+    // we need to keep it that way. So add evens
     let b3 = b2.child(1); // 4
     let b4 = b3.child(2); // 6
 
@@ -257,8 +339,8 @@ fn bc_3_odd_chain_valid() {
     let g = Header::genesis(); // 0
     let b1 = g.child(2); // 2
     let b2 = b1.child(1); // 3
-                          // It' all about the states, not the extrinsics. So once the state is odd
-                          // we need to keep it that way. So add evens
+    // It' all about the states, not the extrinsics. So once the state is odd
+    // we need to keep it that way. So add evens
     let b3 = b2.child(2); // 5
     let b4 = b3.child(2); // 7
 
